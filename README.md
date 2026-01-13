@@ -4,14 +4,17 @@ A Next.js web application for task prioritization with dynamic metrics, built wi
 
 ## Features
 
-- **Dynamic Metrics**: Add, edit, and remove metrics beyond the default R, T, Q, S
-- **Auto-computed Values**: Value = weighted sum of all metric scores using coefficients
-- **Auto-computed Priority**: Priority = Value / Sprint Points
-- **Real-time Sorting**: Tasks automatically sort by Gate (Yes first) then Priority (descending)
-- **Inline Editing**: Edit tasks, scores, and metrics directly in the table
-- **Expandable Task Titles**: Task title inputs automatically expand to fit full content
-- **ClickUp Links**: Attach links to tasks (e.g., ClickUp URLs) - click to open or edit
-- **Analytics Dashboard**: Comprehensive charts and visualizations for task analysis
+- **Epic-Based Prioritization**: Epics are the main prioritized unit with RTQS scoring (1-10 scale)
+- **Story Management**: Stories belong to epics and have sprint points, gate flags, and manual ordering
+- **RTQS Rating System**: Rate each epic on R, T, Q, S metrics using a 1-10 scale (out of 10)
+- **Auto-computed Values**: Value = weighted sum of RTQS scores using coefficients
+- **Auto-computed Priority**: Priority = Value / Total Sprint Points
+- **Real-time Sorting**: Epics automatically sort by Priority (descending)
+- **Inline Editing**: Edit epics, RTQS scores, and stories directly in the table
+- **Expandable Story Titles**: Story title tooltips show full text on hover (400ms delay)
+- **ClickUp Links**: Attach links to epics and stories - click to open or edit
+- **Analytics Dashboard**: Comprehensive charts and visualizations for epic analysis
+- **Metrics Configuration**: Configure R, T, Q, S coefficients to weight importance
 - **Persistent Storage**: All data stored in Supabase PostgreSQL database
 
 ## Prerequisites

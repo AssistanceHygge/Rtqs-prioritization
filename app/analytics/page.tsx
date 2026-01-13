@@ -16,11 +16,12 @@ const PRIORITY_BUCKETS = [
 ]
 
 const VALUE_BUCKETS = [
-  { name: '0-5', min: 0, max: 5 },
-  { name: '6-10', min: 6, max: 10 },
-  { name: '11-15', min: 11, max: 15 },
-  { name: '16-20', min: 16, max: 20 },
-  { name: '21+', min: 21, max: Infinity },
+  { name: '0-10', min: 0, max: 10 },
+  { name: '11-20', min: 11, max: 20 },
+  { name: '21-30', min: 21, max: 30 },
+  { name: '31-35', min: 31, max: 35 },
+  { name: '36-40', min: 36, max: 40 },
+  { name: '40+', min: 40, max: Infinity },
 ]
 
 const STORY_POSITION_BUCKETS = [

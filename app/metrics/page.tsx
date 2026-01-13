@@ -308,7 +308,7 @@ export default function MetricsPage() {
       </div>
 
       <div className="mt-4 text-sm text-gray-600">
-        <p><strong>Note:</strong> Only R, T, Q, and S metrics are supported. Changing a coefficient will automatically update epic values and priorities. Epic value = (R × R_coeff) + (T × T_coeff) + (Q × Q_coeff) + (S × S_coeff).</p>
+        <p><strong>Note:</strong> Only R, T, Q, and S metrics are supported. Each metric is rated from 1-10 (out of 10). Changing a coefficient will automatically update epic values and priorities. Epic value = (R × R_coeff) + (T × T_coeff) + (Q × Q_coeff) + (S × S_coeff).</p>
       </div>
     </div>
   )

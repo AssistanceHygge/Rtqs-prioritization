@@ -5,7 +5,7 @@ import { supabase, type EpicWithPriority, type Story } from '@/lib/supabase'
 import StoryTitleTooltip from '@/components/StoryTitleTooltip'
 
 const SPRINT_POINTS_OPTIONS = [1, 2, 3, 5, 8, 13, 21]
-const SCORE_OPTIONS = [1, 3, 5]
+const SCORE_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 export default function EpicsPage() {
   const [epics, setEpics] = useState<EpicWithPriority[]>([])
@@ -454,7 +454,7 @@ export default function EpicsPage() {
               className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="0">-</option>
-              {SCORE_OPTIONS.map((score) => (
+              {SCORE_OPTIONS.filter(score => score > 0).map((score) => (
                 <option key={score} value={score}>{score}</option>
               ))}
             </select>
@@ -466,7 +466,7 @@ export default function EpicsPage() {
               className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="0">-</option>
-              {SCORE_OPTIONS.map((score) => (
+              {SCORE_OPTIONS.filter(score => score > 0).map((score) => (
                 <option key={score} value={score}>{score}</option>
               ))}
             </select>
@@ -478,7 +478,7 @@ export default function EpicsPage() {
               className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="0">-</option>
-              {SCORE_OPTIONS.map((score) => (
+              {SCORE_OPTIONS.filter(score => score > 0).map((score) => (
                 <option key={score} value={score}>{score}</option>
               ))}
             </select>
@@ -490,7 +490,7 @@ export default function EpicsPage() {
               className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="0">-</option>
-              {SCORE_OPTIONS.map((score) => (
+              {SCORE_OPTIONS.filter(score => score > 0).map((score) => (
                 <option key={score} value={score}>{score}</option>
               ))}
             </select>
