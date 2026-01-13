@@ -151,23 +151,45 @@ export default function EpicsPage() {
 
   const handleConfirmEpicChanges = async (epicId: string) => {
     try {
-      const changes = pendingEpicChanges[epicId]
-      if (changes && Object.keys(changes).length > 0) {
-        const { error } = await supabase
+      const changes = pendingEpicChanges[epicId] || {}
+      const titleChange = localEpicTitles[epicId]
+      
+      // Build update object
+      const updateData: any = {
+        is_confirmed: true
+      }
+      
+      // Include title if it was changed
+      if (titleChange && titleChange !== epics.find(e => e.id === epicId)?.title) {
+        updateData.title = titleChange
+      }
+      
+      // Include other changes (r, t, q, s, link, etc.)
+      Object.keys(changes).forEach(key => {
+        if (key !== 'title') {
+          updateData[key] = changes[key as keyof typeof changes]
+        }
+      })
+      
+      // Only update if there are actual changes
+      if (Object.keys(updateData).length > 1 || (updateData.title && updateData.title !== epics.find(e => e.id === epicId)?.title)) {
+        const { error, data } = await supabase
           .from('epics')
-          .update({
-            ...changes,
-            is_confirmed: true
-          })
+          .update(updateData)
           .eq('id', epicId)
+          .select()
 
-        if (error) throw error
+        if (error) {
+          console.error('Supabase error:', error)
+          throw new Error(error.message || 'Database error occurred')
+        }
       }
 
       await loadData()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error confirming epic changes:', error)
-      alert('Failed to save changes')
+      const errorMessage = error?.message || error?.toString() || 'Unknown error occurred'
+      alert(`Failed to save changes: ${errorMessage}`)
     }
   }
 
