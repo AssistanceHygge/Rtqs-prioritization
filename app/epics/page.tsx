@@ -460,16 +460,16 @@ export default function EpicsPage() {
   const separateEpics = () => {
     const prioritized: EpicWithPriority[] = []
     const unprioritized: EpicWithPriority[] = []
+    const proposed: EpicWithPriority[] = []
 
-    // Use original epic data (from DB) for sorting, not pending changes
+    // Use status field to separate epics
     epics.forEach(epic => {
-      // Check if epic is prioritized using SAVED values only
-      const isPrioritized = epic.r > 0 && epic.t > 0 && epic.q > 0 && epic.s > 0 && epic.total_sprint_points > 0
-      
-      if (isPrioritized) {
-        prioritized.push(epic) // Use original epic for sorting
+      if (epic.status === 'proposed') {
+        proposed.push(epic)
+      } else if (epic.status === 'prioritized') {
+        prioritized.push(epic)
       } else {
-        unprioritized.push(epic) // Use original epic for sorting
+        unprioritized.push(epic)
       }
     })
 
@@ -485,7 +485,11 @@ export default function EpicsPage() {
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
 
-    return { prioritized, unprioritized }
+    proposed.sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+
+    return { prioritized, unprioritized, proposed }
   }
 
   const handleLinkEdit = (epicId: string, currentLink: string | null) => {
