@@ -508,7 +508,7 @@ export default function EpicsPage() {
     return <div className="p-8 text-center">Loading...</div>
   }
 
-  const { prioritized, unprioritized } = separateEpics()
+  const { prioritized, unprioritized, proposed } = separateEpics()
 
   const renderEpicRow = (epic: EpicWithPriority, isExpanded: boolean) => {
     const hasChanges = hasPendingChanges(epic.id)
