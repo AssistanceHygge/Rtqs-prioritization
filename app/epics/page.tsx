@@ -346,9 +346,12 @@ export default function EpicsPage() {
   const handleValidateEpic = async (epicId: string) => {
     try {
       const epic = epics.find(e => e.id === epicId)
-      if (!epic) return
+      if (!epic) {
+        alert('Epic not found')
+        return
+      }
 
-      // Determine new status based on RTQS and stories
+      // Check if epic is already prioritized (has RTQS scores and stories with sprint points)
       const isPrioritized = epic.r > 0 && epic.t > 0 && epic.q > 0 && epic.s > 0 && epic.total_sprint_points > 0
       const newStatus = isPrioritized ? 'prioritized' : 'unprioritized'
 
@@ -357,11 +360,18 @@ export default function EpicsPage() {
         .update({ status: newStatus })
         .eq('id', epicId)
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error:', error)
+        alert(`Failed to validate epic: ${error.message}`)
+        throw error
+      }
+
+      // Reload data to reflect the change
       await loadData()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error validating epic:', error)
-      alert('Failed to validate epic')
+      const errorMessage = error?.message || error?.toString() || 'Unknown error'
+      alert(`Failed to validate epic: ${errorMessage}`)
     }
   }
 
@@ -683,15 +693,27 @@ export default function EpicsPage() {
             {epic.gate_count || 0}
           </td>
           <td className="px-4 py-3 whitespace-nowrap">
-            <button
-              onClick={() => handleDeleteEpic(epic.id)}
-              className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-            >
-              Delete
-            </button>
+            {epic.status === 'proposed' ? (
+              <button
+                onClick={() => handleValidateEpic(epic.id)}
+                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                title="Validate epic"
+              >
+                ✓ Validate
+              </button>
+            ) : (
+              <button
+                onClick={() => handleDeleteEpic(epic.id)}
+                className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                Delete
+              </button>
+            )}
           </td>
           <td className="px-4 py-3 whitespace-nowrap">
-            {hasChanges ? (
+            {epic.status === 'proposed' ? (
+              <span className="text-gray-400 text-sm">-</span>
+            ) : hasChanges ? (
               <button
                 onClick={() => handleConfirmEpicChanges(epic.id)}
                 className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center gap-1"
