@@ -22,6 +22,8 @@ export default function EpicsPage() {
   // Track pending changes at epic level
   const [pendingEpicChanges, setPendingEpicChanges] = useState<Record<string, Partial<EpicWithPriority>>>({})
   const [localEpicTitles, setLocalEpicTitles] = useState<Record<string, string>>({})
+  // Track pending story changes (sprint points, gate, etc.) - these mark epic as dirty
+  const [pendingStoryChanges, setPendingStoryChanges] = useState<Record<string, Partial<Story>>>({})
 
   useEffect(() => {
     loadData()
@@ -53,7 +55,7 @@ export default function EpicsPage() {
       if (epicsError) throw epicsError
       setEpics(epicsData || [])
 
-      // Load all stories
+      // Load all stories (both official and proposed)
       const { data: storiesData, error: storiesError } = await supabase
         .from('stories')
         .select('*')
@@ -98,6 +100,7 @@ export default function EpicsPage() {
         .insert({ 
           title: newEpicTitle.trim(), 
           link: newEpicLink.trim() || null,
+          status: 'unprioritized',
           is_confirmed: false
         })
         .select()
@@ -111,6 +114,32 @@ export default function EpicsPage() {
     } catch (error) {
       console.error('Error adding epic:', error)
       alert('Failed to add epic')
+    }
+  }
+
+  const handleProposeEpic = async () => {
+    if (!newEpicTitle.trim()) return
+
+    try {
+      const { data, error } = await supabase
+        .from('epics')
+        .insert({ 
+          title: newEpicTitle.trim(), 
+          link: newEpicLink.trim() || null,
+          status: 'proposed',
+          is_confirmed: false
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+      setNewEpicTitle('')
+      setNewEpicLink('')
+      setShowLinkInput(false)
+      await loadData()
+    } catch (error) {
+      console.error('Error proposing epic:', error)
+      alert('Failed to propose epic')
     }
   }
 
@@ -164,24 +193,44 @@ export default function EpicsPage() {
         updateData.title = titleChange
       }
       
-      // Include other changes (r, t, q, s, link, etc.)
+      // Include other changes (r, t, q, s, link, etc.) - exclude internal flags
       Object.keys(changes).forEach(key => {
-        if (key !== 'title') {
+        if (key !== 'title' && key !== '_hasStoryChanges') {
           updateData[key] = changes[key as keyof typeof changes]
         }
       })
       
-      // Only update if there are actual changes
+      // Save epic changes if there are any
       if (Object.keys(updateData).length > 1 || (updateData.title && updateData.title !== epics.find(e => e.id === epicId)?.title)) {
-        const { error, data } = await supabase
+        const { error } = await supabase
           .from('epics')
           .update(updateData)
           .eq('id', epicId)
-          .select()
 
         if (error) {
           console.error('Supabase error:', error)
           throw new Error(error.message || 'Database error occurred')
+        }
+      }
+
+      // Save all pending story changes for this epic
+      const epicStories = stories[epicId] || []
+      const storyUpdates = epicStories
+        .filter(story => pendingStoryChanges[story.id])
+        .map(story => ({
+          id: story.id,
+          changes: pendingStoryChanges[story.id]
+        }))
+
+      for (const { id, changes: storyChanges } of storyUpdates) {
+        const { error } = await supabase
+          .from('stories')
+          .update(storyChanges)
+          .eq('id', id)
+
+        if (error) {
+          console.error('Error updating story:', error)
+          throw new Error(`Failed to update story: ${error.message}`)
         }
       }
 
@@ -207,6 +256,7 @@ export default function EpicsPage() {
           title: 'New Story',
           sprint_points: 1,
           gate: false,
+          status: 'official',
           order_index: maxOrder + 1
         })
 
@@ -218,20 +268,94 @@ export default function EpicsPage() {
     }
   }
 
-  const handleUpdateStory = async (storyId: string, field: string, value: any) => {
+  const handleProposeStory = async (epicId: string) => {
+    try {
+      const epicStories = stories[epicId] || []
+      const maxOrder = epicStories.length > 0 
+        ? Math.max(...epicStories.map(s => s.order_index))
+        : -1
+
+      const { error } = await supabase
+        .from('stories')
+        .insert({
+          epic_id: epicId,
+          title: 'Proposed Story',
+          sprint_points: 1,
+          gate: false,
+          status: 'proposed',
+          order_index: maxOrder + 1
+        })
+
+      if (error) throw error
+      await loadData()
+    } catch (error) {
+      console.error('Error proposing story:', error)
+      alert('Failed to propose story')
+    }
+  }
+
+  const handleUpdateStory = (storyId: string, field: string, value: any) => {
+    // Store pending change locally (don't save to DB yet)
+    // This marks the epic as dirty
+    const story = Object.values(stories).flat().find(s => s.id === storyId)
+    if (!story) return
+
+    setPendingStoryChanges(prev => ({
+      ...prev,
+      [storyId]: {
+        ...prev[storyId],
+        [field]: value
+      }
+    }))
+
+    // Mark the epic as dirty when story changes
+    setPendingEpicChanges(prev => ({
+      ...prev,
+      [story.epic_id]: {
+        ...prev[story.epic_id],
+        // Mark that story changes exist
+        _hasStoryChanges: true
+      }
+    }))
+  }
+
+  const handleValidateStory = async (storyId: string) => {
     try {
       const { error } = await supabase
         .from('stories')
-        .update({ [field]: value })
+        .update({ status: 'official' })
         .eq('id', storyId)
 
       if (error) throw error
       await loadData()
     } catch (error) {
-      console.error('Error updating story:', error)
-      alert('Failed to update story')
+      console.error('Error validating story:', error)
+      alert('Failed to validate story')
     }
   }
+
+  const handleValidateEpic = async (epicId: string) => {
+    try {
+      const epic = epics.find(e => e.id === epicId)
+      if (!epic) return
+
+      // Determine new status based on RTQS and stories
+      const isPrioritized = epic.r > 0 && epic.t > 0 && epic.q > 0 && epic.s > 0 && epic.total_sprint_points > 0
+      const newStatus = isPrioritized ? 'prioritized' : 'unprioritized'
+
+      const { error } = await supabase
+        .from('epics')
+        .update({ status: newStatus })
+        .eq('id', epicId)
+
+      if (error) throw error
+      await loadData()
+    } catch (error) {
+      console.error('Error validating epic:', error)
+      alert('Failed to validate epic')
+    }
+  }
+
 
   const handleDeleteStory = async (storyId: string, epicId: string) => {
     if (!confirm('Are you sure you want to delete this story?')) return
@@ -323,7 +447,14 @@ export default function EpicsPage() {
   }
 
   const hasPendingChanges = (epicId: string): boolean => {
-    return pendingEpicChanges[epicId] && Object.keys(pendingEpicChanges[epicId]).length > 0
+    const epicChanges = pendingEpicChanges[epicId]
+    if (epicChanges && Object.keys(epicChanges).filter(k => k !== '_hasStoryChanges').length > 0) {
+      return true
+    }
+    
+    // Check if any stories in this epic have pending changes
+    const epicStories = stories[epicId] || []
+    return epicStories.some(story => pendingStoryChanges[story.id] && Object.keys(pendingStoryChanges[story.id]).length > 0)
   }
 
   const separateEpics = () => {
@@ -564,7 +695,7 @@ export default function EpicsPage() {
           </td>
         </tr>
         {isExpanded && epicStories.map((story, index) => (
-          <tr key={story.id} className={`bg-gray-50 ${story.gate ? 'border-l-4 border-l-yellow-400' : ''}`}>
+          <tr key={story.id} className={`bg-gray-50 ${story.gate ? 'border-l-4 border-l-yellow-400' : ''} ${story.status === 'proposed' ? 'opacity-75 bg-purple-50' : ''}`}>
             <td className="px-4 py-2">
               <div className="flex items-center gap-2">
                 <div className="flex flex-col gap-1">
@@ -588,11 +719,14 @@ export default function EpicsPage() {
                 <StoryTitleTooltip title={story.title}>
                   <input
                     type="text"
-                    value={story.title}
+                    value={pendingStoryChanges[story.id]?.title !== undefined ? pendingStoryChanges[story.id].title : story.title}
                     onChange={(e) => handleUpdateStory(story.id, 'title', e.target.value)}
                     className="flex-1 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </StoryTitleTooltip>
+                {story.status === 'proposed' && (
+                  <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded">Proposed</span>
+                )}
               </div>
             </td>
             <td className="px-4 py-2 whitespace-nowrap">
@@ -615,7 +749,7 @@ export default function EpicsPage() {
             <td colSpan={4} className="px-4 py-2 text-center text-gray-400 text-sm">-</td>
             <td className="px-4 py-2 whitespace-nowrap">
               <select
-                value={story.sprint_points}
+                value={pendingStoryChanges[story.id]?.sprint_points !== undefined ? pendingStoryChanges[story.id].sprint_points : story.sprint_points}
                 onChange={(e) => handleUpdateStory(story.id, 'sprint_points', parseInt(e.target.value))}
                 className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
@@ -626,7 +760,7 @@ export default function EpicsPage() {
             </td>
             <td className="px-4 py-2 whitespace-nowrap">
               <select
-                value={story.gate ? 'Yes' : 'No'}
+                value={pendingStoryChanges[story.id]?.gate !== undefined ? (pendingStoryChanges[story.id].gate ? 'Yes' : 'No') : (story.gate ? 'Yes' : 'No')}
                 onChange={(e) => handleUpdateStory(story.id, 'gate', e.target.value === 'Yes')}
                 className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
@@ -636,24 +770,40 @@ export default function EpicsPage() {
             </td>
             <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-400">-</td>
             <td className="px-4 py-2 whitespace-nowrap">
-              <button
-                onClick={() => handleDeleteStory(story.id, epic.id)}
-                className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-              >
-                Delete
-              </button>
+              {story.status === 'proposed' ? (
+                <button
+                  onClick={() => handleValidateStory(story.id)}
+                  className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                  title="Validate story"
+                >
+                  ✓ Validate
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleDeleteStory(story.id, epic.id)}
+                  className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                >
+                  Delete
+                </button>
+              )}
             </td>
             <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-400">-</td>
           </tr>
         ))}
         {isExpanded && (
           <tr className="bg-gray-50">
-            <td colSpan={12} className="px-4 py-2">
+            <td colSpan={12} className="px-4 py-2 flex gap-2">
               <button
                 onClick={() => handleAddStory(epic.id)}
                 className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
               >
-                + Add Story to Epic
+                + Add Story
+              </button>
+              <button
+                onClick={() => handleProposeStory(epic.id)}
+                className="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm"
+              >
+                + Propose Story
               </button>
             </td>
           </tr>
@@ -702,6 +852,12 @@ export default function EpicsPage() {
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               Add Epic
+            </button>
+            <button
+              onClick={handleProposeEpic}
+              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              Propose Epic
             </button>
           </div>
           {showLinkInput && (

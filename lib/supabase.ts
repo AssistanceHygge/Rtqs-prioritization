@@ -17,6 +17,7 @@ export type Epic = {
   t: number
   q: number
   s: number
+  status: 'prioritized' | 'unprioritized' | 'proposed'
   is_confirmed: boolean
   created_at: string
   updated_at: string
@@ -30,6 +31,7 @@ export type EpicWithPriority = {
   t: number
   q: number
   s: number
+  status: 'prioritized' | 'unprioritized' | 'proposed'
   value: number
   total_sprint_points: number
   priority: number
@@ -47,6 +49,7 @@ export type Story = {
   sprint_points: number
   gate: boolean
   order_index: number
+  status: 'official' | 'proposed'
   created_at: string
   updated_at: string
 }
