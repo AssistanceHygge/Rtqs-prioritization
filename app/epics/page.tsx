@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { supabase, type EpicWithPriority, type Story } from '@/lib/supabase'
 import StoryTitleTooltip from '@/components/StoryTitleTooltip'
 
@@ -243,6 +243,61 @@ export default function EpicsPage() {
         }
       }
 
+      // After saving, check if epic should be prioritized and update status
+      // Get current epic state
+      const currentEpic = epics.find(e => e.id === epicId)
+      if (!currentEpic || currentEpic.status === 'proposed') {
+        await loadData()
+        return
+      }
+      
+      // Calculate final RTQS values (pending changes + current values)
+      const finalR = updateData.r !== undefined ? updateData.r : currentEpic.r
+      const finalT = updateData.t !== undefined ? updateData.t : currentEpic.t
+      const finalQ = updateData.q !== undefined ? updateData.q : currentEpic.q
+      const finalS = updateData.s !== undefined ? updateData.s : currentEpic.s
+      
+      // Get stories with updated sprint points (include id for pending changes lookup)
+      const { data: updatedStories } = await supabase
+        .from('stories')
+        .select('id, sprint_points, status')
+        .eq('epic_id', epicId)
+        .eq('status', 'official')
+      
+      // Calculate total sprint points (including pending changes)
+      let totalSprintPoints = updatedStories?.reduce((sum, s: any) => {
+        const pendingChange = pendingStoryChanges[s.id]?.sprint_points
+        return sum + (pendingChange !== undefined ? pendingChange : s.sprint_points)
+      }, 0) || 0
+      
+      // If no stories yet, check if we have any stories at all
+      if (totalSprintPoints === 0) {
+        const allStories = stories[epicId] || []
+        totalSprintPoints = allStories
+          .filter(s => s.status === 'official')
+          .reduce((sum, s) => {
+            const pendingChange = pendingStoryChanges[s.id]?.sprint_points
+            return sum + (pendingChange !== undefined ? pendingChange : s.sprint_points)
+          }, 0)
+      }
+      
+      const isPrioritized = finalR > 0 && finalT > 0 && finalQ > 0 && finalS > 0 && totalSprintPoints > 0
+      const newStatus = isPrioritized ? 'prioritized' : 'unprioritized'
+      
+      // Only update status if it changed
+      if (currentEpic.status !== newStatus) {
+        const { error: statusError } = await supabase
+          .from('epics')
+          .update({ status: newStatus })
+          .eq('id', epicId)
+        
+        if (statusError) {
+          console.error('Error updating epic status:', statusError)
+          // Don't throw - status update is not critical, but log it
+        }
+      }
+      
+      // Reload data to reflect all changes
       await loadData()
     } catch (error: any) {
       console.error('Error confirming epic changes:', error)
@@ -806,19 +861,35 @@ export default function EpicsPage() {
             <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-400">-</td>
             <td className="px-4 py-2 whitespace-nowrap">
               {story.status === 'proposed' ? (
-                <button
-                  onClick={() => handleValidateStory(story.id)}
-                  className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                  title="Validate story"
-                >
-                  ✓ Validate
-                </button>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handleValidateStory(story.id)}
+                    className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    title="Validate story"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteStory(story.id, epic.id)}
+                    className="p-1.5 bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    title="Delete story"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={() => handleDeleteStory(story.id, epic.id)}
-                  className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                  className="p-1.5 bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  title="Delete story"
                 >
-                  Delete
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               )}
             </td>
@@ -935,7 +1006,11 @@ export default function EpicsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {prioritized.map(epic => renderEpicRow(epic, expandedEpics.has(epic.id)))}
+                {prioritized.map(epic => (
+                  <Fragment key={epic.id}>
+                    {renderEpicRow(epic, expandedEpics.has(epic.id))}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </>
@@ -965,7 +1040,11 @@ export default function EpicsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {proposed.map(epic => renderEpicRow(epic, expandedEpics.has(epic.id)))}
+                {proposed.map(epic => (
+                  <Fragment key={epic.id}>
+                    {renderEpicRow(epic, expandedEpics.has(epic.id))}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </>
@@ -995,7 +1074,11 @@ export default function EpicsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {unprioritized.map(epic => renderEpicRow(epic, expandedEpics.has(epic.id)))}
+                {unprioritized.map(epic => (
+                  <Fragment key={epic.id}>
+                    {renderEpicRow(epic, expandedEpics.has(epic.id))}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </>
