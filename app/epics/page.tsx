@@ -118,7 +118,10 @@ export default function EpicsPage() {
   }
 
   const handleProposeEpic = async () => {
-    if (!newEpicTitle.trim()) return
+    if (!newEpicTitle.trim()) {
+      alert('Please enter an epic title')
+      return
+    }
 
     try {
       const { data, error } = await supabase
@@ -132,14 +135,20 @@ export default function EpicsPage() {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error:', error)
+        alert(`Failed to propose epic: ${error.message}`)
+        throw error
+      }
+      
       setNewEpicTitle('')
       setNewEpicLink('')
       setShowLinkInput(false)
       await loadData()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error proposing epic:', error)
-      alert('Failed to propose epic')
+      const errorMessage = error?.message || error?.toString() || 'Unknown error'
+      alert(`Failed to propose epic: ${errorMessage}`)
     }
   }
 
@@ -905,6 +914,36 @@ export default function EpicsPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {prioritized.map(epic => renderEpicRow(epic, expandedEpics.has(epic.id)))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {proposed.length > 0 && (
+          <>
+            <div className="mb-4 mt-6 border-t-2 border-purple-300 pt-6">
+              <h3 className="text-lg font-semibold text-purple-800">Proposed Epics</h3>
+              <p className="text-sm text-gray-600">Epics proposed by developers, awaiting validation</p>
+            </div>
+            <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm mb-8">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Epic</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Link</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">R</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">T</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Q</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">S</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Value</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Total SP</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Priority</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Gates</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Confirm</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {proposed.map(epic => renderEpicRow(epic, expandedEpics.has(epic.id)))}
               </tbody>
             </table>
           </>
