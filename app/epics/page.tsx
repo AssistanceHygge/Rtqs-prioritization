@@ -318,8 +318,8 @@ export default function EpicsPage() {
   }
 
   const isEpicPrioritized = (epic: EpicWithPriority): boolean => {
-    const displayEpic = getEpicValue(epic)
-    return displayEpic.r > 0 && displayEpic.t > 0 && displayEpic.q > 0 && displayEpic.s > 0 && displayEpic.total_sprint_points > 0
+    // Use saved values only for determining if epic is prioritized (not pending changes)
+    return epic.r > 0 && epic.t > 0 && epic.q > 0 && epic.s > 0 && epic.total_sprint_points > 0
   }
 
   const hasPendingChanges = (epicId: string): boolean => {
@@ -330,16 +330,23 @@ export default function EpicsPage() {
     const prioritized: EpicWithPriority[] = []
     const unprioritized: EpicWithPriority[] = []
 
+    // Use original epic data (from DB) for sorting, not pending changes
     epics.forEach(epic => {
-      if (isEpicPrioritized(epic)) {
-        prioritized.push(getEpicValue(epic))
+      // Check if epic is prioritized using SAVED values only
+      const isPrioritized = epic.r > 0 && epic.t > 0 && epic.q > 0 && epic.s > 0 && epic.total_sprint_points > 0
+      
+      if (isPrioritized) {
+        prioritized.push(epic) // Use original epic for sorting
       } else {
-        unprioritized.push(getEpicValue(epic))
+        unprioritized.push(epic) // Use original epic for sorting
       }
     })
 
+    // Sort using SAVED priority values only (not pending changes)
     prioritized.sort((a, b) => {
-      if (a.priority !== b.priority) return b.priority - a.priority
+      const priorityA = Number(a.priority)
+      const priorityB = Number(b.priority)
+      if (priorityA !== priorityB) return priorityB - priorityA
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     })
 
@@ -375,6 +382,8 @@ export default function EpicsPage() {
   const renderEpicRow = (epic: EpicWithPriority, isExpanded: boolean) => {
     const hasChanges = hasPendingChanges(epic.id)
     const epicStories = stories[epic.id] || []
+    // Use getEpicValue for display (shows pending changes), but sorting uses original epic
+    const displayEpic = getEpicValue(epic)
 
     return (
       <>
@@ -518,13 +527,13 @@ export default function EpicsPage() {
             </select>
           </td>
           <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-            {getEpicValue(epic).value}
+            {displayEpic.value}
           </td>
           <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
             {epic.total_sprint_points}
           </td>
           <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-            {getEpicValue(epic).priority.toFixed(2)}
+            {displayEpic.priority.toFixed(2)}
           </td>
           <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
             {epic.gate_count || 0}
